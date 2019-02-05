@@ -1,0 +1,30 @@
+version: '3.1'
+
+services:
+
+  # PGPASSWORD=example psql -h 127.0.0.1 -U postgres -p5432
+  pg:
+    image: postgres:11-alpine
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: $PGPASSWORD
+    ports:
+      - 127.0.0.1:5432:5432
+
+  collector:
+    build: .
+    restart: always
+    environment:
+      PGHOST: $PGHOST
+      PGPORT: $PGPORT
+      PGDATABASE: $PGDATABASE
+      PGUSER: $PGUSER
+      PGPASSWORD: $PGPASSWORD
+      JWT_SECRET_KEY: $JWT_SECRET_KEY
+      DASH_NETWORK: $DASH_NETWORK
+      BIND_HOST: $BIND_HOST
+      BIND_PORT: $BIND_PORT
+    ports:
+      - 127.0.0.1:7001:$BIND_PORT
+    depends_on:
+      - pg

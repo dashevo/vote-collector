@@ -1,0 +1,8 @@
+# do not track env vars
+.env
+
+# ignore generated coverage file
+coverage.txt
+
+# do not track binary
+vote-collector

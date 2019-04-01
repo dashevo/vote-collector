@@ -30,7 +30,7 @@ func (s *server) routes() {
 	s.router.HandleFunc("/health", s.handleHealthCheck())
 
 	// route to record incoming votes
-	s.router.HandleFunc("/vote", s.handleVote())
+	s.router.HandleFunc("/vote", s.handleVoteClosed())
 
 	// audit routes
 	s.router.HandleFunc("/validVotes", isAuthorized(s.handleValidVotes()))
@@ -102,6 +102,18 @@ func (s *server) handleVote() http.HandlerFunc {
 		_ = json.NewEncoder(w).Encode(JSONResult{
 			Status:  http.StatusCreated,
 			Message: "Vote Recorded",
+		})
+	}
+}
+
+// handleVoteClosed handles the vote route once voting is Closed
+func (s *server) handleVoteClosed() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Return response
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(JSONResult{
+			Status:  http.StatusForbidden,
+			Message: "Voting Closed",
 		})
 	}
 }

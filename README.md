@@ -19,12 +19,23 @@
 
 ## Install
 
-Clone the repo (or install via `go get`) and build the project. A makefile has been included for convenience.
+Clone the repo and build the project.
 
 ```sh
 git clone https://github.com/dashevo/vote-collector.git
-cd vote-collector
-make
+pushd ./vote-collector/
+```
+
+### Pre-Reqs
+
+Install `go` and `dotenv`:
+
+```sh
+# dotenv - for running with .env config
+curl https://webinstall.dev/dotenv | bash
+
+# Go + standard tooling and "x" tools
+curl https://webinstall.dev/go | bash
 ```
 
 ### Dependencies
@@ -41,11 +52,11 @@ cp example.env .env
 vi .env #  (edit accordingly)
 
 # run
-go run vote-collector
+go run -mod=vendor vote-collector
 
 # -or-
-go build
-./vote-collector
+go build -mod=vendor
+dotenv ./vote-collector
 ```
 
 ## Configuration
@@ -88,9 +99,10 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJUZXN0IFRlc3RlcnNvbiIsInN1YiI6Ikp
 
 _Note that this is just an example and will not work with any production deployment._
 
-## Maintainer
+## Maintainers
 
-[@nmarley](https://github.com/nmarley)
+-   2022 [@coolaj86](https://github.com/coolaj86)
+-   2019 [@nmarley](https://github.com/nmarley)
 
 ## Contributing
 

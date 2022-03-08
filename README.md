@@ -17,6 +17,19 @@
 -   [Contributing](#contributing)
 -   [License](#license)
 
+## API
+
+-   POST `/api/vote`
+    ```json
+    {
+        "addr": "XyBmeuLa8y3D3XmzPvCTj5PVh7WvMPkLn1",
+        "msg": "dte2022-afrancis|ctafti",
+        "sig": "IIm+2++GxT4OtTTY4aZK0iKIWh21yxiwomfY76l197qtVB42KVpy53QxS65zq1R9eN2XLcGh2YsedsVtsmrw2OE="
+    }
+    ```
+-   GET `/api/allVotes`
+-   GET `/api/validVotes`
+
 ## Install
 
 Clone the repo and build the project.
@@ -77,15 +90,15 @@ docker-compose up
 To verify:
 
 ```sh
-curl -i http://127.0.0.1:7001/health
+curl -i http://127.0.0.1:7001/api/health
 ```
 
 ### Generating a JWT
 
 Some routes in the API are only available with authentication. These are the audit routes, which allow reading vote entries:
 
--   `/allVotes`
--   `/validVotes`
+-   GET `/api/allVotes`
+-   GET `/api/validVotes`
 
 For these, a JWT token must be sent in the header (see `curl_examples.sh` in this repo). There is currently no authentication table or route, so this must be manually generated.
 

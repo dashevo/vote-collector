@@ -27,18 +27,18 @@ func (s server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // routes defines the routes the server will handle
 func (s *server) routes(allowVoting bool) {
 	// health check
-	s.router.HandleFunc("/health", s.handleHealthCheck())
+	s.router.HandleFunc("/api/health", s.handleHealthCheck())
 
 	// route to record incoming votes
 	if allowVoting {
-		s.router.HandleFunc("/vote", s.handleVote())
+		s.router.HandleFunc("/api/vote", s.handleVote())
 	} else {
-		s.router.HandleFunc("/vote", s.handleVoteClosed())
+		s.router.HandleFunc("/api/vote", s.handleVoteClosed())
 	}
 
 	// audit routes
-	s.router.HandleFunc("/validVotes", isAuthorized(s.handleValidVotes()))
-	s.router.HandleFunc("/allVotes", isAuthorized(s.handleAllVotes()))
+	s.router.HandleFunc("/api/validVotes", isAuthorized(s.handleValidVotes()))
+	s.router.HandleFunc("/api/allVotes", isAuthorized(s.handleAllVotes()))
 
 	// TODO: catch-all (404)
 	s.router.PathPrefix("/").Handler(s.handleIndex())

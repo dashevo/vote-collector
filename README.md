@@ -6,15 +6,16 @@
 > Simple HTTP vote collection API service in Go
 
 ## Table of Contents
-- [Install](#install)
-  - [Dependencies](#dependencies)
-- [Usage](#usage)
-- [Configuration](#configuration)
-  - [Quick start](#quick-start)
-  - [Generating a JWT](#generating-a-jwt)
-- [Maintainer](#maintainer)
-- [Contributing](#contributing)
-- [License](#license)
+
+-   [Install](#install)
+    -   [Dependencies](#dependencies)
+-   [Usage](#usage)
+-   [Configuration](#configuration)
+    -   [Quick start](#quick-start)
+    -   [Generating a JWT](#generating-a-jwt)
+-   [Maintainer](#maintainer)
+-   [Contributing](#contributing)
+-   [License](#license)
 
 ## Install
 
@@ -72,8 +73,8 @@ curl -i http://127.0.0.1:7001/health
 
 Some routes in the API are only available with authentication. These are the audit routes, which allow reading vote entries:
 
-* `/allVotes`
-* `/validVotes`
+-   `/allVotes`
+-   `/validVotes`
 
 For these, a JWT token must be sent in the header (see `curl_examples.sh` in this repo). There is currently no authentication table or route, so this must be manually generated.
 
@@ -85,7 +86,7 @@ An example JWT token looks like:
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJUZXN0IFRlc3RlcnNvbiIsInN1YiI6IkpvaG4gRG9udXQiLCJpYXQiOjE1NTE0NjYyMjN9.Z03u0ZogZZ4W2C9E7FgisQxWqp-XsnuS48JAxzRxQ1I
 ```
 
-*Note that this is just an example and will not work with any production deployment.*
+_Note that this is just an example and will not work with any production deployment._
 
 ## Maintainer
 

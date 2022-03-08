@@ -25,12 +25,16 @@ func (s server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // routes defines the routes the server will handle
-func (s *server) routes() {
+func (s *server) routes(allowVoting bool) {
 	// health check
 	s.router.HandleFunc("/health", s.handleHealthCheck())
 
 	// route to record incoming votes
-	s.router.HandleFunc("/vote", s.handleVoteClosed())
+	if allowVoting {
+		s.router.HandleFunc("/vote", s.handleVote())
+	} else {
+		s.router.HandleFunc("/vote", s.handleVoteClosed())
+	}
 
 	// audit routes
 	s.router.HandleFunc("/validVotes", isAuthorized(s.handleValidVotes()))

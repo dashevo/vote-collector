@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 
@@ -27,6 +28,7 @@ func envCheck() {
 		"PGPORT",
 		"PGPASSWORD",
 		"PGDATABASE",
+		"ALLOW_VOTING",
 		"JWT_SECRET_KEY",
 		"DASH_NETWORK",
 		"BIND_HOST",
@@ -70,11 +72,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	allowVoting := "true" == os.Getenv("ALLOW_VOTING")
+
 	// create a server object and add db connection
 	srv := server{
 		db: db,
 	}
-	srv.routes()
+	srv.routes(allowVoting)
 
 	// allow CORS w/mux router
 	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type"})
@@ -84,5 +88,7 @@ func main() {
 	// serve the API
 	listenAt := os.Getenv("BIND_HOST") + ":" + os.Getenv("BIND_PORT")
 	fmt.Printf("%s listening at %s\n", os.Args[:1], listenAt)
-	http.ListenAndServe(listenAt, handlers.CORS(originsOk, headersOk, methodsOk)(srv))
+	if err := http.ListenAndServe(listenAt, handlers.CORS(originsOk, headersOk, methodsOk)(srv)); nil != err {
+		log.Fatal(err)
+	}
 }

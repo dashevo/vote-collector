@@ -56,7 +56,7 @@ The vote collector uses environment variables for configuration. Variables are r
 
 A `docker-compose` file is included for testing purposes, which also sets up a Postgres database.
 
-```
+```sh
 cp example.env .env
 vi .env #  (edit accordingly)
 
@@ -65,7 +65,7 @@ docker-compose up
 
 To verify:
 
-```
+```sh
 curl -i http://127.0.0.1:7001/health
 ```
 
@@ -82,7 +82,7 @@ To generate the JWT token, you can use the [JWT Debugger](https://jwt.io/#debugg
 
 An example JWT token looks like:
 
-```
+```jwt
 eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJUZXN0IFRlc3RlcnNvbiIsInN1YiI6IkpvaG4gRG9udXQiLCJpYXQiOjE1NTE0NjYyMjN9.Z03u0ZogZZ4W2C9E7FgisQxWqp-XsnuS48JAxzRxQ1I
 ```
 

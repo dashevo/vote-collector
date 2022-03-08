@@ -32,11 +32,11 @@ The vote collector simply logs votes to a Postgres database, therefore a running
 
 ## Usage
 
-First, copy `.env.example` to `.env` and modify accordingly. Postgres variables need to be configured to point to an accessible, running Postgres instance.
+First, copy `example.env` to `.env` and modify accordingly. Postgres variables need to be configured to point to an accessible, running Postgres instance.
 
 ```sh
 # config
-cp .env.example .env
+cp example.env .env
 vi .env #  (edit accordingly)
 
 # run
@@ -49,14 +49,14 @@ go build
 
 ## Configuration
 
-The vote collector uses environment variables for configuration. Variables are read from a `.env` file and can be overwritten by variables defined in the environment or directly passed to the process. See all available settings in [.env.example](.env.example).
+The vote collector uses environment variables for configuration. Variables are read from a `.env` file and can be overwritten by variables defined in the environment or directly passed to the process. See all available settings in [example.env](example.env).
 
 ### Quick start
 
 A `docker-compose` file is included for testing purposes, which also sets up a Postgres database.
 
 ```
-cp .env.example .env
+cp example.env .env
 vi .env #  (edit accordingly)
 
 docker-compose up

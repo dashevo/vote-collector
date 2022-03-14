@@ -1,9 +1,29 @@
-# github.com/btcsuite/btcutil v0.0.0-20190207003914-4c204d697803
+# github.com/anaskhan96/base58check v0.0.0-20181220122047-b05365d494c4
+## explicit
+github.com/anaskhan96/base58check
+# github.com/btcsuite/btcd v0.20.1-beta
+## explicit; go 1.12
+github.com/btcsuite/btcd/btcec
+# github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 ## explicit
 github.com/btcsuite/btcutil/base58
+# github.com/dashhive/dashmsg v0.10.2
+## explicit; go 1.17
+github.com/dashhive/dashmsg
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible
 ## explicit
 github.com/dgrijalva/jwt-go
+# github.com/ethereum/go-ethereum v1.10.16
+## explicit; go 1.15
+github.com/ethereum/go-ethereum/common
+github.com/ethereum/go-ethereum/common/hexutil
+github.com/ethereum/go-ethereum/common/math
+github.com/ethereum/go-ethereum/crypto
+github.com/ethereum/go-ethereum/crypto/secp256k1
+github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1/include
+github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1/src
+github.com/ethereum/go-ethereum/crypto/secp256k1/libsecp256k1/src/modules/recovery
+github.com/ethereum/go-ethereum/rlp
 # github.com/go-pg/pg v7.1.7+incompatible
 ## explicit
 github.com/go-pg/pg
@@ -18,8 +38,8 @@ github.com/go-pg/pg/types
 # github.com/gorilla/handlers v1.4.0
 ## explicit
 github.com/gorilla/handlers
-# github.com/gorilla/mux v1.7.0
-## explicit
+# github.com/gorilla/mux v1.8.0
+## explicit; go 1.12
 github.com/gorilla/mux
 # github.com/jinzhu/inflection v0.0.0-20180308033659-04140366298a
 ## explicit
@@ -28,11 +48,14 @@ github.com/jinzhu/inflection
 ## explicit; go 1.16
 # github.com/onsi/gomega v1.18.1
 ## explicit; go 1.16
-# golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
-## explicit; go 1.11
+# golang.org/x/crypto v0.0.0-20220313003712-b769efc7c000
+## explicit; go 1.17
 golang.org/x/crypto/pbkdf2
-# gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
-## explicit; go 1.11
+golang.org/x/crypto/ripemd160
+golang.org/x/crypto/sha3
+# golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
+## explicit; go 1.17
+golang.org/x/sys/cpu
 # mellium.im/sasl v0.2.1
 ## explicit
 mellium.im/sasl

@@ -199,14 +199,12 @@ func writeError(errorCode int, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(errorCode)
 	_ = json.NewEncoder(w).Encode(msg)
-	return
 }
 
 // handleIndex is catch-all route handler.
 func (s *server) handleIndex() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeError(http.StatusNotFound, w, r)
-		return
 	}
 }
 
@@ -236,9 +234,5 @@ func isValidAddress(addr string, dashNetwork string) bool {
 		return false
 	}
 
-	if len(decoded) != 20 {
-		return false
-	}
-
-	return true
+	return len(decoded) == 20
 }

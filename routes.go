@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/dashhive/dashmsg"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
@@ -90,8 +91,11 @@ func (s *server) handleVote() http.HandlerFunc {
 		// Very basic input validation. In the future the ideal solution would
 		// be to validate signature as well.
 		if !isValidAddress(v.Address, os.Getenv("DASH_NETWORK")) {
-			writeError(http.StatusBadRequest, w, r)
+			writeErrorMessage("INVALID_NETWORK", http.StatusBadRequest, w, r)
 			return
+		}
+		if err := dashmsg.MagicVerify(v.Address, []byte(v.Message), v.Signature); nil != err {
+			writeErrorMessage("INVALID_SIGNATURE: "+err.Error(), http.StatusBadRequest, w, r)
 		}
 
 		// Insert vote
@@ -177,9 +181,10 @@ func (s *server) handleHealthCheck() http.HandlerFunc {
 // JSONErrorMessage represents the JSON structure of an error message to be
 // returned.
 type JSONErrorMessage struct {
-	Status int    `json:"status"`
-	URL    string `json:"url"`
-	Error  string `json:"error"`
+	Message string `json:"message,omitempty"`
+	Status  int    `json:"status"`
+	URL     string `json:"url"`
+	Error   string `json:"error"`
 }
 
 // JSONResult represents the JSON structure of the success message to be
@@ -187,6 +192,19 @@ type JSONErrorMessage struct {
 type JSONResult struct {
 	Status  int    `json:"status"`
 	Message string `json:"message"`
+}
+
+// writeErrorMessage returns a JSON error with a helpful message.
+func writeErrorMessage(msg string, errorCode int, w http.ResponseWriter, r *http.Request) {
+	result := JSONErrorMessage{
+		Message: msg,
+		Status:  errorCode,
+		URL:     r.URL.Path,
+		Error:   http.StatusText(errorCode),
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(errorCode)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // writeError returns a generic JSON error blob.

@@ -223,11 +223,11 @@ func isValidAddress(addr string, dashNetwork string) bool {
 
 	switch dashNetwork {
 	case "mainnet":
-		if version != 76 && version != 16 {
+		if version != 0x4c && version != 0x10 {
 			return false
 		}
 	case "testnet":
-		if version != 140 && version != 19 {
+		if version != 0x8c && version != 0x13 {
 			return false
 		}
 	default: // only mainnet and testnet supported for now

@@ -7,7 +7,7 @@ github.com/btcsuite/btcd/btcec
 # github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
 ## explicit
 github.com/btcsuite/btcutil/base58
-# github.com/dashhive/dashmsg v0.10.2
+# github.com/dashhive/dashmsg v0.10.4
 ## explicit; go 1.17
 github.com/dashhive/dashmsg
 # github.com/dgrijalva/jwt-go v3.2.0+incompatible

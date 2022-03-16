@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
-	github.com/dashhive/dashmsg v0.10.2
+	github.com/dashhive/dashmsg v0.10.4
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-pg/pg v7.1.7+incompatible
 	github.com/gorilla/handlers v1.4.0

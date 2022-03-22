@@ -14,8 +14,9 @@ import (
 // server is an object which implements the http.Handler interface (passes to
 // router) and related connection objects hang off it (e.g. db conn)
 type server struct {
-	router mux.Router
-	db     *pg.DB
+	router    mux.Router
+	db        *pg.DB
+	gsheetKey string
 }
 
 // envCheck is called upon startup to ensure the required environment variables
@@ -29,6 +30,7 @@ func envCheck() {
 		"PGPASSWORD",
 		"PGDATABASE",
 		"ALLOW_VOTING",
+		"GSHEET_KEY",
 		"JWT_SECRET_KEY",
 		"DASH_NETWORK",
 		"BIND_HOST",
@@ -73,10 +75,12 @@ func main() {
 	}
 
 	allowVoting := "true" == os.Getenv("ALLOW_VOTING")
+	gsheetKey := os.Getenv("GSHEET_KEY")
 
 	// create a server object and add db connection
 	srv := server{
-		db: db,
+		db:        db,
+		gsheetKey: gsheetKey,
 	}
 	srv.routes(allowVoting)
 

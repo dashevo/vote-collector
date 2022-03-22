@@ -7,28 +7,38 @@
 
 ## Table of Contents
 
--   [Install](#install)
-    -   [Dependencies](#dependencies)
--   [Usage](#usage)
--   [Configuration](#configuration)
-    -   [Quick start](#quick-start)
-    -   [Generating a JWT](#generating-a-jwt)
--   [Maintainer](#maintainer)
--   [Contributing](#contributing)
--   [License](#license)
+- [Install](#install)
+  - [Dependencies](#dependencies)
+- [Usage](#usage)
+- [Configuration](#configuration)
+  - [Quick start](#quick-start)
+  - [Generating a JWT](#generating-a-jwt)
+- [Maintainer](#maintainer)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## API
 
--   POST `/api/vote`
-    ```json
+- POST `/api/vote`
+  ```json
+  {
+    "addr": "XyBmeuLa8y3D3XmzPvCTj5PVh7WvMPkLn1",
+    "msg": "dte2022-afrancis|ctafti",
+    "sig": "IIm+2++GxT4OtTTY4aZK0iKIWh21yxiwomfY76l197qtVB42KVpy53QxS65zq1R9eN2XLcGh2YsedsVtsmrw2OE="
+  }
+  ```
+- GET `/api/allVotes`
+- GET `/api/validVotes`
+- GET `/api/candidates`
+  ```json
+  [
     {
-        "addr": "XyBmeuLa8y3D3XmzPvCTj5PVh7WvMPkLn1",
-        "msg": "dte2022-afrancis|ctafti",
-        "sig": "IIm+2++GxT4OtTTY4aZK0iKIWh21yxiwomfY76l197qtVB42KVpy53QxS65zq1R9eN2XLcGh2YsedsVtsmrw2OE="
+      "name": "John Doe, III",
+      "handle": "@johndoe",
+      "email": "john.doe@example.com"
     }
-    ```
--   GET `/api/allVotes`
--   GET `/api/validVotes`
+  ]
+  ```
 
 ## Install
 
@@ -97,8 +107,8 @@ curl -i http://127.0.0.1:7001/api/health
 
 Some routes in the API are only available with authentication. These are the audit routes, which allow reading vote entries:
 
--   GET `/api/allVotes`
--   GET `/api/validVotes`
+- GET `/api/allVotes`
+- GET `/api/validVotes`
 
 For these, a JWT token must be sent in the header (see `curl_examples.sh` in this repo). There is currently no authentication table or route, so this must be manually generated.
 
@@ -114,8 +124,8 @@ _Note that this is just an example and will not work with any production deploym
 
 ## Maintainers
 
--   2022 [@coolaj86](https://github.com/coolaj86)
--   2019 [@nmarley](https://github.com/nmarley)
+- 2022 [@coolaj86](https://github.com/coolaj86)
+- 2019 [@nmarley](https://github.com/nmarley)
 
 ## Contributing
 

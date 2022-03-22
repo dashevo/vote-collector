@@ -37,6 +37,8 @@ func (s *server) routes(allowVoting bool) {
 		s.router.HandleFunc("/api/vote", s.handleVoteClosed())
 	}
 
+	s.router.HandleFunc("/api/candidates", s.handleCandidates())
+
 	// audit routes
 	s.router.HandleFunc("/api/validVotes", isAuthorized(s.handleValidVotes()))
 	s.router.HandleFunc("/api/allVotes", isAuthorized(s.handleAllVotes()))
@@ -76,6 +78,21 @@ func isAuthorized(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// handleCandidates handles the candidates route
+func (s *server) handleCandidates() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		candidates, err := GSheetToCandidates(s.gsheetKey)
+		if err != nil {
+			writeError(http.StatusInternalServerError, w, r)
+			return
+		}
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(candidates)
+	}
+}
+
 // handleVote handles the vote route
 func (s *server) handleVote() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -106,7 +123,7 @@ func (s *server) handleVote() http.HandlerFunc {
 		}
 
 		// Return response
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(JSONResult{
 			Status:  http.StatusCreated,
 			Message: "Vote Recorded",
@@ -118,7 +135,7 @@ func (s *server) handleVote() http.HandlerFunc {
 func (s *server) handleVoteClosed() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Return response
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(JSONResult{
 			Status:  http.StatusForbidden,
 			Message: "Voting Closed",
@@ -137,7 +154,7 @@ func (s *server) handleValidVotes() http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(&votes)
 		if err != nil {
 			writeError(http.StatusInternalServerError, w, r)
@@ -157,7 +174,7 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(&votes)
 		if err != nil {
 			writeError(http.StatusInternalServerError, w, r)
@@ -170,7 +187,7 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 // needed for load balancers to know this service is still "healthy".
 func (s *server) handleHealthCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(JSONResult{
 			Status:  http.StatusOK,
 			Message: http.StatusText(http.StatusOK),
@@ -202,7 +219,7 @@ func writeErrorMessage(msg string, errorCode int, w http.ResponseWriter, r *http
 		URL:     r.URL.Path,
 		Error:   http.StatusText(errorCode),
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errorCode)
 	_ = json.NewEncoder(w).Encode(result)
 }
@@ -214,7 +231,7 @@ func writeError(errorCode int, w http.ResponseWriter, r *http.Request) {
 		URL:    r.URL.Path,
 		Error:  http.StatusText(errorCode),
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errorCode)
 	_ = json.NewEncoder(w).Encode(msg)
 }

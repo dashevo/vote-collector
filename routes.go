@@ -40,8 +40,14 @@ func (s *server) routes(allowVoting bool) {
 	s.router.HandleFunc("/api/candidates", s.handleCandidates())
 
 	// audit routes
-	s.router.HandleFunc("/api/validVotes", isAuthorized(s.handleValidVotes()))
-	s.router.HandleFunc("/api/allVotes", isAuthorized(s.handleAllVotes()))
+	if allowVoting {
+		s.router.HandleFunc("/api/validVotes", isAuthorized(s.handleValidVotes()))
+		s.router.HandleFunc("/api/allVotes", isAuthorized(s.handleAllVotes()))
+	} else {
+		// the public can view all votes once the voting has concluded
+		s.router.HandleFunc("/api/validVotes", s.handleValidVotes())
+		s.router.HandleFunc("/api/allVotes", s.handleAllVotes())
+	}
 
 	// TODO: catch-all (404)
 	s.router.PathPrefix("/").Handler(s.handleIndex())

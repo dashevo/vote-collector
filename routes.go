@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -26,36 +27,33 @@ func (s server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // routes defines the routes the server will handle
-func (s *server) routes(allowVoting bool) {
+func (s *server) routes() {
 	// health check
 	s.router.HandleFunc("/api/health", s.handleHealthCheck())
 
 	// route to record incoming votes
-	if allowVoting {
-		s.router.HandleFunc("/api/vote", s.handleVote())
-	} else {
-		s.router.HandleFunc("/api/vote", s.handleVoteClosed())
-	}
+	s.router.HandleFunc("/api/vote", s.handleVote())
 
 	s.router.HandleFunc("/api/candidates", s.handleCandidates())
 
 	// audit routes
-	if allowVoting {
-		s.router.HandleFunc("/api/validVotes", isAuthorized(s.handleValidVotes()))
-		s.router.HandleFunc("/api/allVotes", isAuthorized(s.handleAllVotes()))
-	} else {
-		// the public can view all votes once the voting has concluded
-		s.router.HandleFunc("/api/validVotes", s.handleValidVotes())
-		s.router.HandleFunc("/api/allVotes", s.handleAllVotes())
-	}
+	// the public can view all votes once the voting has concluded
+	s.router.HandleFunc("/api/validVotes", s.isAuthorizedOrTimely(s.handleValidVotes()))
+	s.router.HandleFunc("/api/allVotes", s.isAuthorizedOrTimely(s.handleAllVotes()))
 
 	// TODO: catch-all (404)
 	s.router.PathPrefix("/").Handler(s.handleIndex())
 }
 
-// isAuthorized is used to wrap handlers that need authz
-func isAuthorized(f http.HandlerFunc) http.HandlerFunc {
+// isAuthorizedOrTimely is used to wrap handlers that need authz during the vote
+func (s *server) isAuthorizedOrTimely(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if time.Until(s.votingEnd) <= 0 {
+			// votes are public once voting has ended
+			f(w, r)
+			return
+		}
+
 		bearerToken, ok := r.Header["Authorization"]
 		if !ok {
 			writeError(http.StatusUnauthorized, w, r)
@@ -84,24 +82,70 @@ func isAuthorized(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *server) updateCandidates() error {
+	s.candidatesUpdateMux.Lock()
+	defer s.candidatesUpdateMux.Unlock()
+
+	s.candidatesMux.RLock()
+	stale := time.Since(s.candidatesUpdatedAt) > 15*time.Minute
+	s.candidatesMux.RUnlock()
+
+	if !stale {
+		return nil
+	}
+
+	candidates, err := GSheetToCandidates(s.gsheetKey)
+	if err != nil {
+		// TODO: we want a way to signal this, yeah?
+		return err
+	}
+
+	s.candidatesMux.Lock()
+	s.candidatesUpdatedAt = time.Now()
+	s.candidates = candidates
+	s.candidatesMux.Unlock()
+	return nil
+}
+
 // handleCandidates handles the candidates route
 func (s *server) handleCandidates() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		candidates, err := GSheetToCandidates(s.gsheetKey)
-		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
-			return
+		var ourCandidates []Candidate
+
+		s.candidatesMux.RLock()
+		if time.Since(s.votingStart) <= 0 {
+			ourCandidates = []Candidate{}
+		} else {
+			ourCandidates = s.candidates
+			//ourCandidates = make([]Candidate, len(s.candidates))
+			//_ = copy(ourCandidates, s.candidates)
 		}
+		s.candidatesMux.RUnlock()
+		go func() {
+			err := s.updateCandidates()
+			if nil != err {
+				log.Printf("Failed to update candidate list: %v\n", err)
+			}
+		}()
 
 		// Return response
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(candidates)
+		_ = json.NewEncoder(w).Encode(ourCandidates)
 	}
 }
 
 // handleVote handles the vote route
 func (s *server) handleVote() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if time.Since(s.votingStart) <= 0 {
+			writeErrorMessage("E_VOTING_NOT_STARTED", http.StatusForbidden, w, r)
+			return
+		}
+		if time.Until(s.votingEnd) <= 0 {
+			writeErrorMessage("E_VOTING_CLOSED", http.StatusForbidden, w, r)
+			return
+		}
+
 		// Parse vote body
 		var v Vote
 		err := json.NewDecoder(r.Body).Decode(&v)
@@ -124,7 +168,7 @@ func (s *server) handleVote() http.HandlerFunc {
 		// Insert vote
 		err = s.db.Insert(&v)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_WRITE", http.StatusInternalServerError, w, r)
 			return
 		}
 
@@ -137,18 +181,6 @@ func (s *server) handleVote() http.HandlerFunc {
 	}
 }
 
-// handleVoteClosed handles the vote route once voting is Closed
-func (s *server) handleVoteClosed() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Return response
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(JSONResult{
-			Status:  http.StatusForbidden,
-			Message: "Voting Closed",
-		})
-	}
-}
-
 // handleValidVotes is the route for vote tallying, and returns only most
 // current vote per MN collateral address.
 // TODO: consider pagination if this gets too big.
@@ -156,14 +188,15 @@ func (s *server) handleValidVotes() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		votes, err := getCurrentVotesOnly(s.db)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_GET_VALID", http.StatusInternalServerError, w, r)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(&votes)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			// this error can't actually happen (unless the client is already errors out)
+			writeErrorMessage("E_RESPONSE_VALID_VOTES", http.StatusInternalServerError, w, r)
 			return
 		}
 	}
@@ -176,14 +209,15 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		votes, err := getAllVotes(s.db)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_GET_ALL", http.StatusInternalServerError, w, r)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		err = json.NewEncoder(w).Encode(&votes)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			// this error can't actually happen (unless the client is already errors out)
+			writeErrorMessage("E_RESPONSE_ALL_VOTES", http.StatusInternalServerError, w, r)
 			return
 		}
 	}

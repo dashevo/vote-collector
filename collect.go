@@ -5,18 +5,28 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/go-pg/pg"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+
+	"github.com/joho/godotenv"
 )
 
 // server is an object which implements the http.Handler interface (passes to
 // router) and related connection objects hang off it (e.g. db conn)
 type server struct {
-	router    mux.Router
-	db        *pg.DB
-	gsheetKey string
+	router              mux.Router
+	db                  *pg.DB
+	gsheetKey           string
+	candidatesUpdateMux *sync.Mutex
+	candidatesMux       *sync.RWMutex
+	candidates          []Candidate
+	candidatesUpdatedAt time.Time
+	votingStart         time.Time
+	votingEnd           time.Time
 }
 
 // envCheck is called upon startup to ensure the required environment variables
@@ -29,7 +39,8 @@ func envCheck() {
 		"PGPORT",
 		"PGPASSWORD",
 		"PGDATABASE",
-		"ALLOW_VOTING",
+		"VOTING_START_DATE",
+		"VOTING_END_DATE",
 		"GSHEET_KEY",
 		"JWT_SECRET_KEY",
 		"DASH_NETWORK",
@@ -56,6 +67,9 @@ func envCheck() {
 }
 
 func main() {
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load(".env.secret")
+
 	envCheck()
 
 	// create a PG database connection
@@ -74,15 +88,46 @@ func main() {
 		os.Exit(1)
 	}
 
-	allowVoting := "true" == os.Getenv("ALLOW_VOTING")
+	votingStart, err := time.Parse(time.RFC3339, os.Getenv("VOTING_START_DATE"))
+	if nil != err {
+		fmt.Fprintf(
+			os.Stderr,
+			"error parsing 'VOTING_START_DATE': %q: %s\n",
+			os.Getenv("VOTING_START_DATE"),
+			err,
+		)
+		os.Exit(1)
+	}
+	votingEnd, err := time.Parse(time.RFC3339, os.Getenv("VOTING_END_DATE"))
+	if nil != err {
+		fmt.Fprintf(
+			os.Stderr,
+			"error parsing 'VOTING_END_DATE': %q: %s\n",
+			os.Getenv("VOTING_END_DATE"),
+			err,
+		)
+		os.Exit(1)
+	}
+
 	gsheetKey := os.Getenv("GSHEET_KEY")
 
 	// create a server object and add db connection
 	srv := server{
-		db:        db,
-		gsheetKey: gsheetKey,
+		db:                  db,
+		gsheetKey:           gsheetKey,
+		votingStart:         votingStart,
+		votingEnd:           votingEnd,
+		candidatesMux:       &sync.RWMutex{},
+		candidatesUpdateMux: &sync.Mutex{},
 	}
-	srv.routes(allowVoting)
+
+	err = srv.updateCandidates()
+	if nil != err {
+		fmt.Fprintf(os.Stderr, "error parsing candidates from CSV using 'GSHEET_KEY': %s\n", err)
+		os.Exit(1)
+	}
+
+	srv.routes()
 
 	// allow CORS w/mux router
 	headersOk := handlers.AllowedHeaders([]string{"X-Requested-With", "Content-Type"})

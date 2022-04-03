@@ -9,6 +9,7 @@ require (
 	github.com/go-pg/pg v7.1.7+incompatible
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.8.0
+	github.com/joho/godotenv v1.4.0
 )
 
 require (

@@ -130,7 +130,9 @@ func (s *server) handleCandidates() http.HandlerFunc {
 
 		// Return response
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ourCandidates)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(ourCandidates)
 	}
 }
 
@@ -174,7 +176,9 @@ func (s *server) handleVote() http.HandlerFunc {
 
 		// Return response
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(JSONResult{
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(JSONResult{
 			Status:  http.StatusCreated,
 			Message: "Vote Recorded",
 		})
@@ -193,7 +197,9 @@ func (s *server) handleValidVotes() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(w).Encode(&votes)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(&votes)
 		if err != nil {
 			// this error can't actually happen (unless the client is already errors out)
 			writeErrorMessage("E_RESPONSE_VALID_VOTES", http.StatusInternalServerError, w, r)
@@ -214,7 +220,9 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		err = json.NewEncoder(w).Encode(&votes)
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(&votes)
 		if err != nil {
 			// this error can't actually happen (unless the client is already errors out)
 			writeErrorMessage("E_RESPONSE_ALL_VOTES", http.StatusInternalServerError, w, r)
@@ -228,7 +236,9 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 func (s *server) handleHealthCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(JSONResult{
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(JSONResult{
 			Status:  http.StatusOK,
 			Message: http.StatusText(http.StatusOK),
 		})
@@ -261,7 +271,9 @@ func writeErrorMessage(msg string, errorCode int, w http.ResponseWriter, r *http
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errorCode)
-	_ = json.NewEncoder(w).Encode(result)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(result)
 }
 
 // writeError returns a generic JSON error blob.
@@ -273,7 +285,9 @@ func writeError(errorCode int, w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errorCode)
-	_ = json.NewEncoder(w).Encode(msg)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(msg)
 }
 
 // handleIndex is catch-all route handler.

@@ -27,8 +27,8 @@
     "sig": "IIm+2++GxT4OtTTY4aZK0iKIWh21yxiwomfY76l197qtVB42KVpy53QxS65zq1R9eN2XLcGh2YsedsVtsmrw2OE="
   }
   ```
-- GET `/api/allVotes`
-- GET `/api/validVotes`
+- GET `/api/votes`
+- GET `/api/all-votes`
 - GET `/api/candidates`
   ```json
   [

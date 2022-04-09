@@ -12,9 +12,11 @@ import (
 // Candidate has a Name and Nickname
 type Candidate struct {
 	// alias, text, value, key
-	Name   string `json:"name"`
-	Handle string `json:"handle"`
-	Email  string `json:"email"`
+	Name           string `json:"name"`
+	Handle         string `json:"handle"`
+	Email          string `json:"email"`
+	Link           string `json:"link"`
+	TrustProtector bool   `json:"trust_protector"`
 }
 
 // GSheetToCandidates converts our special Google Sheet to JSON
@@ -43,6 +45,8 @@ func GSheetToCandidates(sheetKey string) ([]Candidate, error) {
 	nameIndex := -1
 	emailIndex := -1
 	approvedIndex := -1
+	currentTPIndex := -1
+	profileLinkIndex := -1
 
 	for i, v := range headerRow {
 		lower := strings.ToLower(v)
@@ -74,9 +78,23 @@ func GSheetToCandidates(sheetKey string) ([]Candidate, error) {
 			continue
 		}
 
+		if currentTPIndex < 0 &&
+			strings.Contains(lower, "current tp") {
+			currentTPIndex = i
+			continue
+		}
+
+		if profileLinkIndex < 0 &&
+			strings.Contains(lower, "profile link") {
+			profileLinkIndex = i
+			continue
+		}
+
 		if approvedIndex >= 0 &&
 			emailIndex >= 0 &&
 			handleIndex >= 0 &&
+			profileLinkIndex >= 0 &&
+			currentTPIndex >= 0 &&
 			nameIndex >= 0 {
 			break
 		}
@@ -117,6 +135,16 @@ func GSheetToCandidates(sheetKey string) ([]Candidate, error) {
 				Handle: row[handleIndex],
 				Name:   row[nameIndex],
 				Email:  row[emailIndex],
+			}
+			if currentTPIndex >= 0 {
+				currentTP := strings.ToLower(row[currentTPIndex])
+				if "y" == currentTP || "yes" == currentTP {
+					c.TrustProtector = true
+				}
+			}
+			if profileLinkIndex >= 0 {
+				profileLink := row[profileLinkIndex]
+				c.Link = profileLink
 			}
 			candidates = append(candidates, c)
 		}

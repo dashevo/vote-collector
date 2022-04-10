@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -35,6 +37,7 @@ func (s *server) routes() {
 	s.router.HandleFunc("/api/vote", s.handleVote())
 
 	s.router.HandleFunc("/api/candidates", s.handleCandidates())
+	s.router.HandleFunc("/api/votingaddresses", s.handleVotingAddresses())
 
 	// audit routes
 	// the public can view all votes once the voting has concluded
@@ -85,7 +88,7 @@ func (s *server) isAuthorizedOrTimely(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *server) updateCandidates() error {
+func (s *server) updateLists() error {
 	s.candidatesUpdateMux.Lock()
 	defer s.candidatesUpdateMux.Unlock()
 
@@ -102,12 +105,63 @@ func (s *server) updateCandidates() error {
 		// TODO: we want a way to signal this, yeah?
 		return err
 	}
+	s.votingAddresses = s.getMNList()
 
 	s.candidatesMux.Lock()
 	s.candidatesUpdatedAt = time.Now()
 	s.candidates = candidates
 	s.candidatesMux.Unlock()
 	return nil
+}
+
+func (s *server) getMNList() []string {
+	c := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
+	ch := make(chan struct{})
+	//timer :=
+	time.AfterFunc(5*time.Second, func() {
+		close(ch)
+	})
+	// timer.Reset
+
+	req, err := http.NewRequest("GET", s.mnlistURL, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+	req.Cancel = ch
+
+	log.Println("Sending request...")
+	resp, err := c.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	mninfo := map[string]MNInfo{}
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&mninfo); nil != err {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+
+	votingAddresses := []string{}
+	for _, v := range mninfo {
+		votingAddresses = append(votingAddresses, v.VotingAddress)
+	}
+	return votingAddresses
 }
 
 // handleCandidates handles the candidates route
@@ -125,7 +179,7 @@ func (s *server) handleCandidates() http.HandlerFunc {
 		}
 		s.candidatesMux.RUnlock()
 		go func() {
-			err := s.updateCandidates()
+			err := s.updateLists()
 			if nil != err {
 				log.Printf("Failed to update candidate list: %v\n", err)
 			}
@@ -136,6 +190,23 @@ func (s *server) handleCandidates() http.HandlerFunc {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		_ = enc.Encode(ourCandidates)
+	}
+}
+
+// handleCandidates handles the candidates route
+func (s *server) handleVotingAddresses() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ourAddrs []string
+
+		s.candidatesMux.RLock()
+		ourAddrs = s.votingAddresses
+		s.candidatesMux.RUnlock()
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(ourAddrs)
 	}
 }
 

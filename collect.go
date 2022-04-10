@@ -21,12 +21,19 @@ type server struct {
 	router              mux.Router
 	db                  *pg.DB
 	gsheetKey           string
+	mnlistURL           string
 	candidatesUpdateMux *sync.Mutex
 	candidatesMux       *sync.RWMutex
 	candidates          []Candidate
+	votingAddresses     []string
 	candidatesUpdatedAt time.Time
 	votingStart         time.Time
 	votingEnd           time.Time
+}
+
+// MNInfo represents the voting keys of the nodes
+type MNInfo struct {
+	VotingAddress string `json:"votingaddress"`
 }
 
 // envCheck is called upon startup to ensure the required environment variables
@@ -42,6 +49,7 @@ func envCheck() {
 		"VOTING_START_DATE",
 		"VOTING_END_DATE",
 		"GSHEET_KEY",
+		"MNLIST_URL",
 		"JWT_SECRET_KEY",
 		"DASH_NETWORK",
 		"BIND_HOST",
@@ -109,21 +117,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	gsheetKey := os.Getenv("GSHEET_KEY")
-
 	// create a server object and add db connection
 	srv := server{
 		db:                  db,
-		gsheetKey:           gsheetKey,
+		gsheetKey:           os.Getenv("GSHEET_KEY"),
+		mnlistURL:           os.Getenv("MNLIST_URL"),
 		votingStart:         votingStart,
 		votingEnd:           votingEnd,
 		candidatesMux:       &sync.RWMutex{},
 		candidatesUpdateMux: &sync.Mutex{},
 	}
 
-	err = srv.updateCandidates()
+	err = srv.updateLists()
 	if nil != err {
 		fmt.Fprintf(os.Stderr, "error parsing candidates from CSV using 'GSHEET_KEY': %s\n", err)
+		os.Exit(1)
+	}
+	if 0 == len(srv.votingAddresses) {
+		fmt.Fprintf(os.Stderr, "error getting voting addresses from URL using 'MNLIST_URL': %s\n", srv.mnlistURL)
 		os.Exit(1)
 	}
 

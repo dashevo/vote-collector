@@ -2,12 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/btcsuite/btcutil/base58"
+	"github.com/dashhive/dashmsg"
 	jwt "github.com/dgrijalva/jwt-go"
 )
 
@@ -27,22 +31,35 @@ func (s server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // routes defines the routes the server will handle
 func (s *server) routes() {
 	// health check
-	s.router.HandleFunc("/health", s.handleHealthCheck())
+	s.router.HandleFunc("/api/health", s.handleHealthCheck())
 
 	// route to record incoming votes
-	s.router.HandleFunc("/vote", s.handleVoteClosed())
+	s.router.HandleFunc("/api/vote", s.handleVote())
+
+	s.router.HandleFunc("/api/candidates", s.handleCandidates())
+	s.router.HandleFunc("/api/votingaddresses", s.handleVotingAddresses())
 
 	// audit routes
-	s.router.HandleFunc("/validVotes", isAuthorized(s.handleValidVotes()))
-	s.router.HandleFunc("/allVotes", isAuthorized(s.handleAllVotes()))
+	// the public can view all votes once the voting has concluded
+	s.router.HandleFunc("/api/validVotes", s.isAuthorizedOrTimely(s.handleValidVotes()))
+	s.router.HandleFunc("/api/votes", s.isAuthorizedOrTimely(s.handleValidVotes()))
+
+	s.router.HandleFunc("/api/allVotes", s.isAuthorizedOrTimely(s.handleAllVotes()))
+	s.router.HandleFunc("/api/all-votes", s.isAuthorizedOrTimely(s.handleAllVotes()))
 
 	// TODO: catch-all (404)
 	s.router.PathPrefix("/").Handler(s.handleIndex())
 }
 
-// isAuthorized is used to wrap handlers that need authz
-func isAuthorized(f http.HandlerFunc) http.HandlerFunc {
+// isAuthorizedOrTimely is used to wrap handlers that need authz during the vote
+func (s *server) isAuthorizedOrTimely(f http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if time.Until(s.votingEnd) <= 0 {
+			// votes are public once voting has ended
+			f(w, r)
+			return
+		}
+
 		bearerToken, ok := r.Header["Authorization"]
 		if !ok {
 			writeError(http.StatusUnauthorized, w, r)
@@ -71,9 +88,140 @@ func isAuthorized(f http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *server) updateLists() error {
+	s.candidatesUpdateMux.Lock()
+	defer s.candidatesUpdateMux.Unlock()
+
+	s.candidatesMux.RLock()
+	stale := time.Since(s.candidatesUpdatedAt) > 15*time.Minute
+	s.candidatesMux.RUnlock()
+
+	if !stale {
+		return nil
+	}
+
+	candidates, err := GSheetToCandidates(s.gsheetKey)
+	if err != nil {
+		// TODO: we want a way to signal this, yeah?
+		return err
+	}
+	s.votingAddresses = s.getMNList()
+
+	s.candidatesMux.Lock()
+	s.candidatesUpdatedAt = time.Now()
+	s.candidates = candidates
+	s.candidatesMux.Unlock()
+	return nil
+}
+
+func (s *server) getMNList() []string {
+	c := &http.Client{
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
+	ch := make(chan struct{})
+	//timer :=
+	time.AfterFunc(5*time.Second, func() {
+		close(ch)
+	})
+	// timer.Reset
+
+	req, err := http.NewRequest("GET", s.mnlistURL, nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+	req.Cancel = ch
+
+	log.Println("Sending request...")
+	resp, err := c.Do(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	mninfo := map[string]MNInfo{}
+
+	dec := json.NewDecoder(resp.Body)
+	if err := dec.Decode(&mninfo); nil != err {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return nil
+	}
+
+	votingAddresses := []string{}
+	for _, v := range mninfo {
+		votingAddresses = append(votingAddresses, v.VotingAddress)
+	}
+	return votingAddresses
+}
+
+// handleCandidates handles the candidates route
+func (s *server) handleCandidates() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ourCandidates []Candidate
+
+		s.candidatesMux.RLock()
+		if time.Since(s.votingStart) <= 0 {
+			ourCandidates = []Candidate{}
+		} else {
+			ourCandidates = s.candidates
+			//ourCandidates = make([]Candidate, len(s.candidates))
+			//_ = copy(ourCandidates, s.candidates)
+		}
+		s.candidatesMux.RUnlock()
+		go func() {
+			err := s.updateLists()
+			if nil != err {
+				log.Printf("Failed to update candidate list: %v\n", err)
+			}
+		}()
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(ourCandidates)
+	}
+}
+
+// handleCandidates handles the candidates route
+func (s *server) handleVotingAddresses() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var ourAddrs []string
+
+		s.candidatesMux.RLock()
+		ourAddrs = s.votingAddresses
+		s.candidatesMux.RUnlock()
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(ourAddrs)
+	}
+}
+
 // handleVote handles the vote route
 func (s *server) handleVote() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if time.Since(s.votingStart) <= 0 {
+			writeErrorMessage("E_VOTING_NOT_STARTED", http.StatusForbidden, w, r)
+			return
+		}
+		if time.Until(s.votingEnd) <= 0 {
+			writeErrorMessage("E_VOTING_CLOSED", http.StatusForbidden, w, r)
+			return
+		}
+
 		// Parse vote body
 		var v Vote
 		err := json.NewDecoder(r.Body).Decode(&v)
@@ -86,34 +234,27 @@ func (s *server) handleVote() http.HandlerFunc {
 		// Very basic input validation. In the future the ideal solution would
 		// be to validate signature as well.
 		if !isValidAddress(v.Address, os.Getenv("DASH_NETWORK")) {
-			writeError(http.StatusBadRequest, w, r)
+			writeErrorMessage("INVALID_NETWORK", http.StatusBadRequest, w, r)
 			return
+		}
+		if err := dashmsg.MagicVerify(v.Address, []byte(v.Message), v.Signature); nil != err {
+			writeErrorMessage("INVALID_SIGNATURE: "+err.Error(), http.StatusBadRequest, w, r)
 		}
 
 		// Insert vote
 		err = s.db.Insert(&v)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_WRITE", http.StatusInternalServerError, w, r)
 			return
 		}
 
 		// Return response
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(JSONResult{
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(JSONResult{
 			Status:  http.StatusCreated,
 			Message: "Vote Recorded",
-		})
-	}
-}
-
-// handleVoteClosed handles the vote route once voting is Closed
-func (s *server) handleVoteClosed() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Return response
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(JSONResult{
-			Status:  http.StatusForbidden,
-			Message: "Voting Closed",
 		})
 	}
 }
@@ -125,14 +266,17 @@ func (s *server) handleValidVotes() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		votes, err := getCurrentVotesOnly(s.db)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_GET_VALID", http.StatusInternalServerError, w, r)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		err = json.NewEncoder(w).Encode(&votes)
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(&votes)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			// this error can't actually happen (unless the client is already errors out)
+			writeErrorMessage("E_RESPONSE_VALID_VOTES", http.StatusInternalServerError, w, r)
 			return
 		}
 	}
@@ -145,14 +289,17 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		votes, err := getAllVotes(s.db)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			writeErrorMessage("E_DATABASE_GET_ALL", http.StatusInternalServerError, w, r)
 			return
 		}
 
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		err = json.NewEncoder(w).Encode(&votes)
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		err = enc.Encode(&votes)
 		if err != nil {
-			writeError(http.StatusInternalServerError, w, r)
+			// this error can't actually happen (unless the client is already errors out)
+			writeErrorMessage("E_RESPONSE_ALL_VOTES", http.StatusInternalServerError, w, r)
 			return
 		}
 	}
@@ -162,8 +309,10 @@ func (s *server) handleAllVotes() http.HandlerFunc {
 // needed for load balancers to know this service is still "healthy".
 func (s *server) handleHealthCheck() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		_ = json.NewEncoder(w).Encode(JSONResult{
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		enc.SetIndent("", "  ")
+		_ = enc.Encode(JSONResult{
 			Status:  http.StatusOK,
 			Message: http.StatusText(http.StatusOK),
 		})
@@ -173,9 +322,10 @@ func (s *server) handleHealthCheck() http.HandlerFunc {
 // JSONErrorMessage represents the JSON structure of an error message to be
 // returned.
 type JSONErrorMessage struct {
-	Status int    `json:"status"`
-	URL    string `json:"url"`
-	Error  string `json:"error"`
+	Message string `json:"message,omitempty"`
+	Status  int    `json:"status"`
+	URL     string `json:"url"`
+	Error   string `json:"error"`
 }
 
 // JSONResult represents the JSON structure of the success message to be
@@ -185,6 +335,21 @@ type JSONResult struct {
 	Message string `json:"message"`
 }
 
+// writeErrorMessage returns a JSON error with a helpful message.
+func writeErrorMessage(msg string, errorCode int, w http.ResponseWriter, r *http.Request) {
+	result := JSONErrorMessage{
+		Message: msg,
+		Status:  errorCode,
+		URL:     r.URL.Path,
+		Error:   http.StatusText(errorCode),
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(errorCode)
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(result)
+}
+
 // writeError returns a generic JSON error blob.
 func writeError(errorCode int, w http.ResponseWriter, r *http.Request) {
 	msg := JSONErrorMessage{
@@ -192,17 +357,17 @@ func writeError(errorCode int, w http.ResponseWriter, r *http.Request) {
 		URL:    r.URL.Path,
 		Error:  http.StatusText(errorCode),
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(errorCode)
-	_ = json.NewEncoder(w).Encode(msg)
-	return
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(msg)
 }
 
 // handleIndex is catch-all route handler.
 func (s *server) handleIndex() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		writeError(http.StatusNotFound, w, r)
-		return
 	}
 }
 
@@ -221,20 +386,16 @@ func isValidAddress(addr string, dashNetwork string) bool {
 
 	switch dashNetwork {
 	case "mainnet":
-		if version != 76 && version != 16 {
+		if version != 0x4c && version != 0x10 {
 			return false
 		}
 	case "testnet":
-		if version != 140 && version != 19 {
+		if version != 0x8c && version != 0x13 {
 			return false
 		}
 	default: // only mainnet and testnet supported for now
 		return false
 	}
 
-	if len(decoded) != 20 {
-		return false
-	}
-
-	return true
+	return len(decoded) == 20
 }
